@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_supabase/models/book_model.dart';
+import 'package:flutter_supabase/viewmodel/book_view_model.dart';
+import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:uuid/uuid.dart';
 
 String _statusLabel(BookStatus status) {
   switch (status) {
@@ -24,70 +28,104 @@ class AddBookView extends StatefulWidget {
 }
 
 class _AddBookViewState extends State<AddBookView> {
-    final _formKey = GlobalKey<FormState>();
-    final _titleController = TextEditingController();
-    final _authorController = TextEditingController();
-    final _genreController = TextEditingController();
-    final _pagesController = TextEditingController();
-    BookStatus? _selectedStatus;
-    double _rating = 3.0;
-    final _commentController = TextEditingController();
-    
+  final _formKey = GlobalKey<FormState>();
+  final _titleController = TextEditingController();
+  final _authorController = TextEditingController();
+  final _genreController = TextEditingController();
+  final _pagesController = TextEditingController();
+  BookStatus? _selectedStatus;
+  double _rating = 3.0;
+  final _commentController = TextEditingController();
 
-    @override
-    void dispose() {
-      _titleController.dispose();
-      _authorController.dispose();
-      _genreController.dispose();
-      _pagesController.dispose();
-      super.dispose();
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _authorController.dispose();
+    _genreController.dispose();
+    _pagesController.dispose();
+    super.dispose();
   }
 
-    void _submitForm() {
-    if (_formKey.currentState!.validate()) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Dati validi possiamo andare avanti")),
+  void _submitForm() async {
+    if (_formKey.currentState!.validate() && _selectedStatus != null) {
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('utente non autenticato')));
+        return;
+      }
+
+      final newBook = Book(
+        id: const Uuid().v4(),
+        userId: userId,
+        title: _titleController.text.trim(),
+        genre: _genreController.text.trim(),
+        author: _authorController.text.trim(),
+        pages: int.tryParse(_pagesController.text.trim()) ?? 0,
+        rating: _rating.toInt(),
+        comment: _commentController.text.trim(),
+        status: _selectedStatus!,
+        createdAt: DateTime.now(),
       );
+
+      try {
+        await Provider.of<BookViewModel>(
+          context,
+          listen: false,
+        ).addBook(newBook);
+        if (context.mounted) {
+          Navigator.pop(context);
+          ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text("Dati validi possiamo andare avanti")),
+          );
+        }
+      } catch (e) {
+        print("errore nel salvataggio del libro: $e");
+        ScaffoldMessenger.of(context).showSnackBar(
+             SnackBar(content: Text("Errore nel salvataggio del libro")),
+        );
+      }
     }
   }
 
   @override
-Widget build(BuildContext context) {
-  return Scaffold(
-    appBar: AppBar(title: const Text("Form ins libro")),
-    body: Padding(
-      padding: const EdgeInsets.all(16.0),
-      child: Form(
-        key: _formKey,
-        child: ListView(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: TextFormField(
-                controller: _titleController,
-                decoration:  InputDecoration(
-                  labelText: 'titolo',
-                  border: OutlineInputBorder(),
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text("Form ins libro")),
+      body: Padding(
+        padding: const EdgeInsets.all(16.0),
+        child: Form(
+          key: _formKey,
+          child: ListView(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextFormField(
+                  controller: _titleController,
+                  decoration: InputDecoration(
+                    labelText: 'titolo',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'campo obbligatorio'
+                      : null,
                 ),
-                validator: (value) => value == null || value.trim().isEmpty
-                  ? 'campo obbligatorio'
-                  : null,
               ),
-            ),
-             Padding(
-               padding: const EdgeInsets.all(8.0),
-               child: TextFormField(
+              Padding(
+                padding: const EdgeInsets.all(8.0),
+                child: TextFormField(
                   controller: _authorController,
                   decoration: const InputDecoration(
-                  labelText: 'Nome Autore',
-                  border: OutlineInputBorder(),
+                    labelText: 'Nome Autore',
+                    border: OutlineInputBorder(),
+                  ),
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'campo obbligatorio'
+                      : null,
                 ),
-                validator: (value) => value == null || value.trim().isEmpty
-                  ? 'campo obbligatorio'
-                  : null,
-                ),
-             ),
-            Padding(
+              ),
+              Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: TextFormField(
                   controller: _genreController,
@@ -97,7 +135,7 @@ Widget build(BuildContext context) {
                   ),
                 ),
               ),
-            Padding(
+              Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: TextFormField(
                   controller: _pagesController,
@@ -119,54 +157,53 @@ Widget build(BuildContext context) {
               Padding(
                 padding: const EdgeInsets.all(8.0),
                 child: DropdownButtonFormField(
-                value: _selectedStatus,
-                decoration: const InputDecoration(
-                  labelText: 'Stato di lettura',
-                  border: OutlineInputBorder(),
-                ),
-                items: BookStatus.values.map((status) {
-                  return DropdownMenuItem(
-                    value: status, 
-                    child: Text(_statusLabel(status)),
-                  );
-                }).toList(),
-                onChanged: (Value) {
-                  setState(() {
-                    _selectedStatus = Value;
-                  });
-                },
-                validator: (value) => value == null 
-                  ? "Seleziona uno stato di lettura" 
-                  : null,
+                  value: _selectedStatus,
+                  decoration: const InputDecoration(
+                    labelText: 'Stato di lettura',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: BookStatus.values.map((status) {
+                    return DropdownMenuItem(
+                      value: status,
+                      child: Text(_statusLabel(status)),
+                    );
+                  }).toList(),
+                  onChanged: (Value) {
+                    setState(() {
+                      _selectedStatus = Value;
+                    });
+                  },
+                  validator: (value) =>
+                      value == null ? "Seleziona uno stato di lettura" : null,
                 ),
               ),
               Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Valutazione', 
-                      style: TextStyle(fontWeight: FontWeight.bold),
-                    ),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Slider(
-                            min: 1,
-                            max: 5,
-                            divisions: 4,
-                            value: _rating,
-                            onChanged: (value) {
-                              setState(() {
-                                _rating = value;
-                              });
-                            },
-                          ),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Valutazione',
+                    style: TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Slider(
+                          min: 1,
+                          max: 5,
+                          divisions: 4,
+                          value: _rating,
+                          onChanged: (value) {
+                            setState(() {
+                              _rating = value;
+                            });
+                          },
                         ),
-                        Text("${_rating.toStringAsFixed(0)} ⭐")
-                      ],
-                    ),
-                  ],
-                ),
+                      ),
+                      Text("${_rating.toStringAsFixed(0)} ⭐"),
+                    ],
+                  ),
+                ],
+              ),
 
               Padding(
                 padding: const EdgeInsets.all(8.0),
@@ -175,7 +212,7 @@ Widget build(BuildContext context) {
                   decoration: InputDecoration(
                     labelText: 'Inserisci il commento',
                     border: OutlineInputBorder(),
-                    alignLabelWithHint: true
+                    alignLabelWithHint: true,
                   ),
                   maxLines: 4,
                 ),
@@ -185,15 +222,10 @@ Widget build(BuildContext context) {
                 icon: const Icon(Icons.arrow_forward),
                 label: const Text("Continua"),
               ),
-          ],
-        ), 
+            ],
+          ),
+        ),
       ),
-    ),
-  );
-}
-
-
-
-
-  
+    );
+  }
 }
