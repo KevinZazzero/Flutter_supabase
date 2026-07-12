@@ -36,7 +36,7 @@ class UserProfile {
       'id': id, 
       'username': username,
       'birthdate': birthdate.toIso8601String(),
-      'avatarUrl': avatarUrl,
+      'avatar_url': avatarUrl,
     };
   }
 }
