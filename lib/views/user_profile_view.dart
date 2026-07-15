@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_supabase/core/storage_service.dart';
 import 'package:flutter_supabase/models/user_profile.dart';
 import 'package:flutter_supabase/viewmodel/profile_view_model.dart';
 import 'package:flutter_supabase/views/widgets/Bottom_nav_bar.dart';
@@ -74,8 +75,8 @@ class _UserProfileViewState extends State<UserProfileView> {
                         onTap: _pickImageFromGallery,
                         child: CircleAvatar(
                           radius: 50,
-                          backgroundImage: _selectedFile != null 
-                            ? FileImage(_selectedFile!)
+                          backgroundImage: _selectedFile != null
+                              ? FileImage(_selectedFile!)
                               : profile?.avatarUrl != null
                               ? NetworkImage(profile!.avatarUrl!)
                               : AssetImage('assets/avatar_placeholder.jpg')
@@ -131,6 +132,27 @@ class _UserProfileViewState extends State<UserProfileView> {
                         if (_formKey.currentState!.validate() &&
                             _selectedDate != null) {
                           final username = _usernameController.text.trim();
+
+                          
+                          String? finalAvatarUrl = profile?.avatarUrl;
+
+                          
+                          if (_selectedFile != null && profile != null) {
+                            try {
+                              final storageService = StorageService();
+                              
+                              finalAvatarUrl = await storageService.uploadImage(
+                                _selectedFile!,
+                                profile.id,
+                              );
+                            } catch (e) {
+                              print(
+                                "Errore durante l'upload con StorageService: $e",
+                              );
+                            }
+                          }
+
+                          
                           if (profile == null) {
                             await profileVM.createUserProfile(
                               username,
@@ -139,22 +161,30 @@ class _UserProfileViewState extends State<UserProfileView> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text("Profilo creato con successo"),
-                              ), // SnackBar
+                              ),
                             );
                           } else {
+                            
                             final updated = UserProfile(
                               id: profile.id,
                               username: username,
                               birthdate: _selectedDate!,
-                              avatarUrl: profile.avatarUrl,
+                              avatarUrl:
+                                  finalAvatarUrl, 
                             );
+
                             await profileVM.updateUserProfile(updated);
+
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text("Profilo aggiornato"),
                               ),
                             );
                           }
+
+                          setState(() {
+                            _selectedFile = null;
+                          });
                         }
                       },
                     ),
