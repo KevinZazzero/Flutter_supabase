@@ -38,12 +38,14 @@ class BookViewModel extends ChangeNotifier {
 
   }
 
-  Future<void> addBook (Book book) async {
+    Future<void> addBook(Book book) async {
     try {
+      
       await _bookService.createBook(book);
-      notifyListeners();
+      
+      await loadBooks(); 
     } catch (e) {
-      print("errore nel creazione del libro $e");
+      print("errore nella creazione del libro $e");
     }
   }
 
